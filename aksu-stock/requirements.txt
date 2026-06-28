@@ -1,0 +1,10 @@
+# Requirements for aksu-stock skeleton
+akshare>=1.0.0
+pandas
+matplotlib
+requests
+PyYAML
+
+# Optional (for PDF export/rendering)
+jinja2
+pdfkit
