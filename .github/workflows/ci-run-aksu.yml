@@ -39,8 +39,8 @@ jobs:
           FEISHU_WEBHOOK: ${{ secrets.FEISHU_WEBHOOK }}   # 可选：如果你配置了 secret，monitor 可以使用它
         run: |
           . .venv/bin/activate
-          # 运行一次性检查（使用仓库内示例配置）
-          python3 aksu-stock/services/monitor.py run_once --config aksu-stock/config/config.example.json
+          # Run as a package module so relative imports work correctly
+          PYTHONPATH=. python -m aksu_stock.services.monitor run_once --config aksu-stock/config/config.example.json
 
       - name: Show notify log (if produced)
         if: always()
