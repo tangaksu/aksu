@@ -1,7 +1,0 @@
-      - name: Run monitor once (run_once)
-        run: |
-          . .venv/bin/activate
-          # 在 runner 上创建一个 Python 合法包名的符号链接（若已存在则跳过）
-          if [ ! -e aksu_stock ]; then ln -s aksu-stock aksu_stock || true; fi
-          # 以模块方式运行 monitor，保证相对导入可用
-          PYTHONPATH=. python -m aksu_stock.services.monitor run_once --config aksu-stock/config/config.example.json
