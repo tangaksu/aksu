@@ -1,0 +1,61 @@
+name: CI - run tests and monitor (manual)
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-run-monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Create virtualenv & install deps
+        run: |
+          python -m venv .venv
+          . .venv/bin/activate
+          python -m pip install --upgrade pip
+          pip install pytest requests
+
+      - name: Run pytest
+        run: |
+          . .venv/bin/activate
+          pytest -q || true
+        # 注意：这里用 || true 保证即使测试失败也能继续运行后面的步骤以收集日志/artifact。
+        # 如果你希望在测试失败时就中断 workflow，可删掉 "|| true".
+
+      - name: Run monitor once (run_once)
+        env:
+          FEISHU_WEBHOOK: ${{ secrets.FEISHU_WEBHOOK }}   # 可选：如果你配置了 secret，monitor 可以使用它
+        run: |
+          . .venv/bin/activate
+          # 运行一次性检查（使用仓库内示例配置）
+          python3 aksu-stock/services/monitor.py run_once --config aksu-stock/config/config.example.json
+
+      - name: Show notify log (if produced)
+        if: always()
+        run: |
+          if [ -f .aksu_notify.log ]; then
+            echo "---- .aksu_notify.log ----"
+            cat .aksu_notify.log || true
+            echo "---- end .aksu_notify.log ----"
+          else
+            echo "No .aksu_notify.log found."
+          fi
+
+      - name: Upload notify log as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aksu-notify-log
+          path: .aksu_notify.log
