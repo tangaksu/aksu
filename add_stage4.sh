@@ -10,10 +10,10 @@ if [ ! -d .git ]; then
 fi
 
 # switch/create branch
-if git show-ref --quiet refs/heads/$BRANCH; then
-  git.checkout() || git checkout $BRANCH
+if git show-ref --quiet refs/heads/"$BRANCH"; then
+  git checkout "$BRANCH"
 else
-  git checkout -b $BRANCH
+  git checkout -b "$BRANCH"
 fi
 
 mkdir -p aksu-stock/adapters
@@ -146,19 +146,3 @@ cat > tests/test_analyzer_extended.py <<'PY'
 from aksu_stock.services.analyzer import analyze_single
 
 def test_analyze_single_no_akshare():
-    # If akshare not installed or adapter cannot find symbol, analyzer should return AnalysisResult with ok False or a structured data
-    res = analyze_single("000000")
-    # acceptable behaviour: either ok==False with an error, or ok==True with data containing error from adapter
-    assert hasattr(res, "ok")
-    if not res.ok:
-        assert res.error is not None
-    else:
-        assert "symbol" in res.data
-PY
-
-# add & commit
-git add aksu-stock pyproject.toml Dockerfile tests || true
-git commit -m "$MSG" || true
-
-echo "stage4 files created and committed on branch $BRANCH."
-echo "To push: git push origin $BRANCH"
