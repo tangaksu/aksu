@@ -75,6 +75,8 @@ Directory: `RESEARCH/STOCK_600519_Kweichow_Moutai/`
 **Ready to proceed?**
 ```
 
+> **Note**: Before presenting the above plan to the user, save it to `RESEARCH/STOCK_600519_Kweichow_Moutai/00_Research_Plan.md` using the `Write` tool. This ensures the plan persists even after the user approves and the agent moves on to execution.
+
 ---
 
 ## Example 2: Parallel Agent Deployment

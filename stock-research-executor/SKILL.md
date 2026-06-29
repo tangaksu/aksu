@@ -131,7 +131,9 @@ Files: [list all files to be created]
 Ready to proceed?
 ```
 
-**Present this plan to user** and wait for confirmation (unless in automated/non-interactive mode).
+**Before presenting the plan to the user**, use the `Write` tool to save the plan to `RESEARCH/STOCK_[ticker]_[company]/00_Research_Plan.md`. This ensures the plan content is permanently available in the file system even after the user approves and the conversation moves on.
+
+**Then present the plan to user** and wait for confirmation (unless in automated/non-interactive mode).
 
 ### Step 3: Deploy Multi-Agent Research (Phases 1-7)
 

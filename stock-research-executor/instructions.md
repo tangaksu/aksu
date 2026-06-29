@@ -278,12 +278,23 @@ I'll now create a detailed research execution plan. One moment...
 **Ready to proceed?** I'll begin by deploying parallel agents for Phase 1.
 ```
 
+### Save Plan to File (Before Presenting to User)
+
+**Before** showing the plan to the user, use the `Write` tool to save it to a file:
+
+```
+File: RESEARCH/STOCK_[ticker]_[company_name]/00_Research_Plan.md
+```
+
+This ensures the plan content is permanently available in the file system even after the user approves and the conversation moves on.
+
 ### Present Plan to User
 
 Show the plan and wait for approval (unless in automated mode):
 
 ```
 I've created a research execution plan for [company] ([ticker]).
+The plan has been saved to `RESEARCH/STOCK_[ticker]_[company_name]/00_Research_Plan.md`.
 
 **Key highlights**:
 - [number] phases, deploying ~[total] research agents in parallel
@@ -294,7 +305,7 @@ I've created a research execution plan for [company] ([ticker]).
 Would you like me to proceed? Or would you like to adjust the plan?
 ```
 
-**If user wants adjustments**: Modify plan accordingly
+**If user wants adjustments**: Modify plan accordingly and re-save the file
 **If user approves**: Begin execution
 **If no response (automated mode)**: Proceed after brief pause
 
