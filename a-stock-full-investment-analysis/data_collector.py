@@ -35,7 +35,13 @@ def _tencent_prefix(code: str) -> str:
 
 def _safe_float(v: Any, default: float | None = None) -> float | None:
     try:
-        return float(v) if v not in (None, "", "0", "0.00") else default
+        if v in (None, "", "0", "0.00"):
+            return default
+        result = float(v)
+        import math
+        if math.isnan(result) or math.isinf(result):
+            return default
+        return result
     except (TypeError, ValueError):
         return default
 
@@ -220,14 +226,14 @@ def fetch_financial_indicator(code: str) -> dict | None:
 
 
 def fetch_profit_statement(code: str) -> list[dict]:
-    """利润表数据（近4季）"""
+    """利润表数据（近12季，约3年）"""
     try:
         import akshare as ak
         df = ak.stock_profit_sheet_by_report_em(symbol=code)
         if df is None or df.empty:
             return []
         result = []
-        for _, row in df.head(4).iterrows():
+        for _, row in df.head(12).iterrows():
             result.append({
                 "period": str(row.get("REPORT_DATE", "")),
                 "revenue": _safe_float(row.get("TOTAL_OPERATE_INCOME")),
@@ -236,6 +242,7 @@ def fetch_profit_statement(code: str) -> list[dict]:
                 "gross_profit": _safe_float(row.get("GROSS_PROFIT")),
                 "revenue_yoy": _safe_float(row.get("TOTAL_OPERATE_INCOME_YOY")),
                 "profit_yoy": _safe_float(row.get("PARENT_NETPROFIT_YOY")),
+                "rd_expense": _safe_float(row.get("RESEARCH_EXPENSE")),
             })
         return result
     except Exception:
@@ -281,6 +288,35 @@ def fetch_cashflow(code: str) -> dict | None:
         }
     except Exception:
         return None
+
+
+def fetch_annual_financial(code: str) -> list[dict]:
+    """年度财务摘要（近3年：营收、净利润、毛利率、研发投入）"""
+    try:
+        import akshare as ak
+        df = ak.stock_profit_sheet_by_yearly_em(symbol=code)
+        if df is None or df.empty:
+            return []
+        result = []
+        for _, row in df.head(4).iterrows():
+            revenue = _safe_float(row.get("TOTAL_OPERATE_INCOME"))
+            gross_profit = _safe_float(row.get("GROSS_PROFIT"))
+            gross_margin = None
+            if revenue and gross_profit and revenue > 0:
+                gross_margin = round(gross_profit / revenue * 100, 2)
+            result.append({
+                "year": str(row.get("REPORT_DATE", ""))[:4],
+                "revenue": revenue,
+                "net_profit": _safe_float(row.get("PARENT_NETPROFIT")),
+                "gross_profit": gross_profit,
+                "gross_margin": gross_margin,
+                "rd_expense": _safe_float(row.get("RESEARCH_EXPENSE")),
+                "revenue_yoy": _safe_float(row.get("TOTAL_OPERATE_INCOME_YOY")),
+                "profit_yoy": _safe_float(row.get("PARENT_NETPROFIT_YOY")),
+            })
+        return result
+    except Exception:
+        return []
 
 
 # ──────────────────────────────────────────────
@@ -387,10 +423,18 @@ def fetch_stock_info(code: str) -> dict | None:
             k = str(row.get("item", ""))
             v = str(row.get("value", ""))
             info[k] = v
+        # 兼容不同字段名（沪深主板 vs 科创/创业板）
+        industry = (
+            info.get("行业")
+            or info.get("所属行业")
+            or info.get("所在行业")
+            or info.get("申万行业")
+            or ""
+        )
         return {
             "name": info.get("股票简称", ""),
             "code": info.get("股票代码", code),
-            "industry": info.get("行业", ""),
+            "industry": industry,
             "list_date": info.get("上市时间", ""),
             "total_shares": info.get("总股本", ""),
             "float_shares": info.get("流通股", ""),
@@ -429,13 +473,13 @@ def fetch_industry_rank(industry: str) -> list[dict]:
 
 
 def fetch_sector_fund_flow(code: str) -> dict | None:
-    """个股资金流向（主力净流入）"""
+    """个股资金流向（主力净流入，近30日）"""
     try:
         import akshare as ak
         df = ak.stock_individual_fund_flow(stock=code, market="sh" if code.startswith(("6", "9")) else "sz")
         if df is None or df.empty:
             return None
-        rows = df.head(10).to_dict("records")
+        rows = df.head(30).to_dict("records")
         latest = rows[0] if rows else {}
         return {
             "date": str(latest.get("日期", "")),
@@ -445,7 +489,7 @@ def fetch_sector_fund_flow(code: str) -> dict | None:
             "big_net": _safe_float(latest.get("大单净流入-净额")),
             "medium_net": _safe_float(latest.get("中单净流入-净额")),
             "small_net": _safe_float(latest.get("小单净流入-净额")),
-            "recent": rows[:5],
+            "recent": rows[:30],
         }
     except Exception:
         return None
@@ -738,6 +782,7 @@ def collect_all_data(code: str) -> dict:
     result["profit_statement"] = fetch_profit_statement(code)
     result["balance_sheet"] = fetch_balance_sheet(code)
     result["cashflow"] = fetch_cashflow(code)
+    result["annual_financial"] = fetch_annual_financial(code)
     print("✓")
 
     # 5. 股东治理

@@ -102,10 +102,11 @@ def analyze_valuation(data: dict) -> ModuleResult:
         pe_min = vh.get("pe_min")
         pe_max = vh.get("pe_max")
         pe_avg = vh.get("pe_avg")
+        pb_pct = vh.get("pb_percentile")
 
         if pe_pct is not None:
             findings.append(
-                f"历史PE分位（近3年）：{pe_pct:.0f}% "
+                f"历史PE分位（数据来源：东财指标库）：{pe_pct:.0f}% "
                 f"（区间 {pe_min:.1f}x ~ {pe_max:.1f}x，均值 {pe_avg:.1f}x）"
             )
             if pe_pct < 20:
@@ -120,6 +121,33 @@ def analyze_valuation(data: dict) -> ModuleResult:
             elif pe_pct > 60:
                 score -= 0.5
                 findings.append(f"⚠️ 估值偏历史高位（{pe_pct:.0f}%分位）")
+        if pb_pct is not None:
+            findings.append(f"历史PB分位：{pb_pct:.0f}%")
+    else:
+        findings.append("ℹ️ 历史估值分位数据暂缺，仅凭当前PE/PB评估")
+
+    # ── 行业估值对标 ──
+    peers = data.get("industry_peers") or []
+    if peers and pe:
+        peer_pe_vals = [p.get("pe") for p in peers if p.get("pe") and 0 < p.get("pe") < 2000]
+        if peer_pe_vals:
+            peer_pe_sorted = sorted(peer_pe_vals)
+            peer_pe_median = peer_pe_sorted[len(peer_pe_sorted) // 2]
+            peer_pe_avg = sum(peer_pe_vals) / len(peer_pe_vals)
+            pe_vs_peer = (pe - peer_pe_median) / peer_pe_median * 100 if peer_pe_median > 0 else None
+            findings.append(
+                f"行业对标：行业PE中位数 {peer_pe_median:.1f}x（均值 {peer_pe_avg:.1f}x，"
+                f"数据来源：同行业 {len(peer_pe_vals)} 只可比公司）"
+            )
+            if pe_vs_peer is not None:
+                if pe_vs_peer > 100:
+                    warnings.append(f"🚨 个股PE较行业中位数溢价 {pe_vs_peer:.0f}%，估值显著偏贵")
+                    score -= 1.0
+                elif pe_vs_peer > 30:
+                    findings.append(f"⚠️ 个股PE较行业中位数溢价 {pe_vs_peer:.0f}%，估值偏高")
+                elif pe_vs_peer < -30:
+                    score += 0.5
+                    findings.append(f"✅ 个股PE较行业中位数折价 {abs(pe_vs_peer):.0f}%，行业内相对低估")
 
     # ── 护城河评估 ──
     moat_score = 0
