@@ -50,16 +50,47 @@ def analyze_capital(data: dict) -> ModuleResult:
         if small_net and small_net > 0 and main_net and main_net < 0:
             warnings.append("⚠️ 主力出货、散户接盘，分歧明显，慎追")
 
-    # ── 近5日累计资金流向 ──
+    # ── 近5/10/30日累计资金流向 ──
     recent = fund_flow.get("recent") or []
     if len(recent) >= 3:
-        total_5d = sum(r.get("主力净流入-净额") or r.get("main_net") or 0 for r in recent[:5])
-        findings.append(f"近{len(recent)}日主力累计净流入：{yi(total_5d)}")
+        def _get_main_net(row):
+            # 兼容原始中文键和归一化英文键
+            for key in ("主力净流入-净额", "main_net"):
+                v = row.get(key)
+                if v is not None:
+                    try:
+                        f = float(v)
+                        import math
+                        return f if not math.isnan(f) else 0
+                    except (TypeError, ValueError):
+                        pass
+            return 0
+        total_5d = sum(_get_main_net(r) for r in recent[:5])
+        total_10d = sum(_get_main_net(r) for r in recent[:10]) if len(recent) >= 10 else None
+        total_30d = sum(_get_main_net(r) for r in recent[:30]) if len(recent) >= 30 else None
+        findings.append(f"近5日主力累计净流入：{yi(total_5d)}")
+        if total_10d is not None:
+            findings.append(f"近10日主力累计净流入：{yi(total_10d)}")
+        if total_30d is not None:
+            findings.append(f"近30日主力累计净流入：{yi(total_30d)}")
+
+        # 连续流向趋势判断
+        recent5_nets = [_get_main_net(r) for r in recent[:5]]
+        inflow_days = sum(1 for n in recent5_nets if n > 0)
+        outflow_days = sum(1 for n in recent5_nets if n < 0)
+        findings.append(f"近5日中：净流入 {inflow_days} 天，净流出 {outflow_days} 天")
+
         if total_5d > 0:
             score += 0.5
-            findings.append("✅ 近期持续净流入，筹码积累信号")
+            if inflow_days >= 4:
+                findings.append("✅ 近5日持续净流入，筹码积累信号")
+            else:
+                findings.append("✅ 近5日整体净流入，资金小幅布局")
         else:
-            findings.append("⚠️ 近期持续净流出，主力不认可当前价格")
+            if outflow_days >= 4:
+                findings.append("⚠️ 近5日持续净流出，主力不认可当前价格")
+            else:
+                findings.append("⚠️ 近5日整体净流出，资金偏谨慎")
 
     # ── 龙虎榜分析 ──
     if dragon:

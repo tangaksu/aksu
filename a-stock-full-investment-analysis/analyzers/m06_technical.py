@@ -158,7 +158,7 @@ def analyze_technical(data: dict) -> ModuleResult:
         avg_vol5 = sum(volumes[-5:]) / 5
         avg_vol20 = sum(volumes[-20:]) / 20 if len(volumes) >= 20 else avg_vol5
         vol_ratio = round(volumes[-1] / avg_vol20, 2) if avg_vol20 > 0 else 1.0
-        findings.append(f"量比：{vol_ratio:.2f}（5日均量 vs 20日均量）")
+        findings.append(f"量比：{vol_ratio:.2f}（今日量 / 20日均量）")
 
         pct = rt.get("pct_change") or 0
         if vol_ratio > 2.0 and pct > 3:
@@ -172,6 +172,20 @@ def analyze_technical(data: dict) -> ModuleResult:
             warnings.append("⚠️ 放量大跌，主力出货信号")
         elif vol_ratio < 0.5 and pct > 2:
             findings.append("⚠️ 缩量上涨，动能不足，可持续性存疑")
+
+        # ── 成交量趋势（近10日 vs 前10日均量对比）──
+        if len(volumes) >= 20:
+            vol_recent10 = sum(volumes[-10:]) / 10
+            vol_prev10 = sum(volumes[-20:-10]) / 10
+            if vol_prev10 > 0:
+                vol_trend_pct = (vol_recent10 - vol_prev10) / vol_prev10 * 100
+                if vol_trend_pct > 30:
+                    score += 0.5
+                    findings.append(f"✅ 近10日均量较前10日放大 {vol_trend_pct:.0f}%，成交量持续扩张，资金活跃度提升")
+                elif vol_trend_pct < -30:
+                    findings.append(f"⚠️ 近10日均量较前10日萎缩 {abs(vol_trend_pct):.0f}%，成交量持续萎缩，市场热情降温")
+                else:
+                    findings.append(f"ℹ️ 成交量趋势平稳（近10日均量变化 {vol_trend_pct:+.0f}%）")
 
     # ── 关键位 ──
     n_high = round(max(closes[-60:]), 2) if len(closes) >= 60 else round(max(closes), 2)

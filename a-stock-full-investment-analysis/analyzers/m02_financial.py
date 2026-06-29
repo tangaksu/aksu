@@ -8,6 +8,7 @@ def analyze_financial(data: dict) -> ModuleResult:
     profits = data.get("profit_statement") or []
     bs = data.get("balance_sheet") or {}
     cf = data.get("cashflow") or {}
+    annual = data.get("annual_financial") or []
 
     findings = []
     warnings = []
@@ -33,24 +34,63 @@ def analyze_financial(data: dict) -> ModuleResult:
             warnings.append("⚠️ ROE < 5%，盈利能力偏弱")
 
     if gross_margin is not None:
-        findings.append(f"毛利率：{fmt(gross_margin)}%，净利率：{fmt(net_margin)}%")
+        findings.append(f"毛利率：{fmt(gross_margin)}%，净利率：{fmt(net_margin) if net_margin is not None else 'N/A'}%")
         if gross_margin >= 40:
             score += 1.0
             findings.append("✅ 毛利率 > 40%，高毛利行业护城河显著")
         elif gross_margin < 10:
             warnings.append("⚠️ 毛利率 < 10%，产品竞争同质化严重")
+    else:
+        findings.append("ℹ️ 毛利率数据暂缺（可能因行业分类不同或API限制）")
 
-    # ── 成长性（利润表） ──
+    # ── 近3年年度财务趋势 ──
+    if annual:
+        findings.append("--- 近年度营收与利润趋势 ---")
+        for yr in annual[:4]:
+            year = yr.get("year", "")
+            rev = yr.get("revenue")
+            np_ = yr.get("net_profit")
+            gm = yr.get("gross_margin")
+            rd = yr.get("rd_expense")
+            rev_yoy = yr.get("revenue_yoy")
+            pnl_yoy = yr.get("profit_yoy")
+            line = f"{year}年：营收 {yi(rev)}，净利润 {yi(np_)}"
+            if gm is not None:
+                line += f"，毛利率 {fmt(gm)}%"
+            if rd is not None:
+                line += f"，研发 {yi(rd)}"
+            if rev_yoy is not None:
+                line += f"（营收同比 {pct_fmt(rev_yoy)}，利润同比 {pct_fmt(pnl_yoy)}）"
+            findings.append(line)
+        # 趋势判断：近2年净利润是否增长
+        if len(annual) >= 2:
+            np0 = annual[0].get("net_profit")
+            np1 = annual[1].get("net_profit")
+            if np0 and np1 and np1 != 0:
+                trend_pct = (np0 - np1) / abs(np1) * 100
+                if trend_pct >= 20:
+                    score += 0.5
+                    findings.append(f"✅ 年度净利润连续增长（最近一年 {pct_fmt(trend_pct)}），成长势头良好")
+                elif trend_pct <= -20:
+                    score -= 0.5
+                    warnings.append(f"⚠️ 年度净利润同比下滑 {abs(trend_pct):.1f}%，需关注业绩持续性")
+
+    # ── 成长性（最新季度利润表） ──
     if profits:
         latest = profits[0]
         revenue = latest.get("revenue")
         net_profit = latest.get("net_profit")
         rev_yoy = latest.get("revenue_yoy")
         pnl_yoy = latest.get("profit_yoy")
+        rd_expense = latest.get("rd_expense")
         period = latest.get("period", "")
 
         if revenue:
             findings.append(f"最新期 ({period[:10]}) 营收：{yi(revenue)}，净利润：{yi(net_profit)}")
+        if rd_expense:
+            rev_val = revenue or 1
+            rd_ratio = rd_expense / rev_val * 100 if rev_val > 0 else None
+            findings.append(f"研发投入：{yi(rd_expense)}" + (f"（占营收 {rd_ratio:.1f}%）" if rd_ratio else ""))
         if rev_yoy is not None:
             findings.append(f"营收同比：{pct_fmt(rev_yoy)}，净利同比：{pct_fmt(pnl_yoy)}")
             if pnl_yoy and pnl_yoy >= 30:
@@ -92,7 +132,7 @@ def analyze_financial(data: dict) -> ModuleResult:
     net_p = profits[0].get("net_profit") if profits else None
     if op_cf and net_p and net_p > 0:
         cf_ratio = op_cf / net_p
-        findings.append(f"经营现金流/净利润：{cf_ratio:.2f}x")
+        findings.append(f"经营现金流/净利润：{cf_ratio:.2f}x（数据来源：最新季报）")
         if cf_ratio >= 1.2:
             score += 1.0
             findings.append("✅ 现金流质量优秀，利润含金量高")
